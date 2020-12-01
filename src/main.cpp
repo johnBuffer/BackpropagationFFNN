@@ -2,6 +2,11 @@
 #include "number_generator.hpp"
 #include "ffnn.hpp"
 
+struct Example
+{
+	ffnn::Vectorf input;
+	ffnn::Vectorf output;
+};
 
 int main()
 {
@@ -14,13 +19,14 @@ int main()
 
 	// Create training set
 	NumberGenerator gen;
-	std::vector<ffnn::Vectorf> input_data;
-	std::vector<ffnn::Vectorf> expected_data;
+	std::vector<Example> training_set;
 	uint64_t examples_count = 10000;
 	for (uint64_t i(examples_count); i--;) {
 		const float a = gen.getUnder(1.0f);
-		input_data.push_back({ a });
-		expected_data.push_back({ a });
+		training_set.push_back({
+			{a},
+			{a}
+		});
 	}
 
 	// Train the network
@@ -28,11 +34,8 @@ int main()
 	float error = threshold + 1.0f;
 	while (error > threshold) {
 		error = 0.0f;
-		for (uint64_t i(examples_count); i--;) {
-			const float a = gen.getUnder(1.0f);
-			std::vector<float> input{ a };
-			std::vector<float> output{ a };
-			optimizer.train(network, input, output);
+		for (const Example& example : training_set) {
+			optimizer.train(network, example.input, example.output);
 			error += optimizer.error;
 		}
 		std::cout << error << std::endl;
