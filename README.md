@@ -19,7 +19,7 @@ A simple struct to handle training examples
 struct Example
 {
 	ffnn::Vectorf input;
-  // The expected output
+        // The expected output
 	ffnn::Vectorf output;
 };
 ```
@@ -46,7 +46,7 @@ while (error > threshold) {
 		optimizer.train(network, example.input, example.output);
 		error += optimizer.error;
 	}
-	// Monitor the error after each iteration
+        // Monitor the error after each iteration
 	std::cout << error << std::endl;
 }
 ```
