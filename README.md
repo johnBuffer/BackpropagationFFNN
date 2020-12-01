@@ -19,7 +19,7 @@ Generate training set, here we just want the output to be equal to the input
 NumberGenerator gen;
 std::vector<ffnn::Vectorf> input_data;
 std::vector<ffnn::Vectorf> expected_data;
-uint64_t examples_count = 10000;
+const uint64_t examples_count = 10000;
 for (uint64_t i(examples_count); i--;) {
   const float a = gen.getUnder(1.0f);
   input_data.push_back({ a });
@@ -33,10 +33,10 @@ float error = threshold + 1.0f;
 while (error > threshold) {
   error = 0.0f;
   for (uint64_t i(examples_count); i--;) {
-    const float a = gen.getUnder(1.0f);
-    std::vector<float> input{ a };
-    std::vector<float> output{ a };
-    optimizer.train(network, input, output);
+    std::vector<float> input{ gen.getUnder(1.0f) };
+    // Here we want the input to be equal the output
+    optimizer.train(network, input, input);
+    // Save the error
     error += optimizer.error;
   }
   std::cout << error << std::endl;
