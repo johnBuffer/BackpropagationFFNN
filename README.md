@@ -9,7 +9,7 @@ Declare network architecture: 1 input, 3 units in hidden layer, 1 output
 std::vector<uint32_t> architecture{ 1, 3, 1 };
 ```
 
-Create the **Network** and the **Optimizer** (with a training rate of 0.01f)
+Create the **Network** and the **Optimizer** (with a training rate of 0.01)
 ```c++
 ffnn::FFNeuralNetwork network(architecture);
 ffnn::Optimizer optimizer(0.01f);
