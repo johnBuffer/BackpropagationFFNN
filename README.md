@@ -14,33 +14,40 @@ Create the **Network** and the **Optimizer** (with a training rate of 0.01f)
 ffnn::FFNeuralNetwork network(architecture);
 ffnn::Optimizer optimizer(0.01f);
 ```
+A simple struct to handle training examples
+```c++
+struct Example
+{
+	ffnn::Vectorf input;
+  // The expected output
+	ffnn::Vectorf output;
+};
+```
 Generate training set, here we just want the output to be equal to the input
 ```c++
 NumberGenerator gen;
-std::vector<ffnn::Vectorf> input_data;
-std::vector<ffnn::Vectorf> expected_data;
-const uint64_t examples_count = 10000;
-for (uint64_t i(examples_count); i--;) {
-  const float a = gen.getUnder(1.0f);
-  input_data.push_back({ a });
-  expected_data.push_back({ a });
-}
+	std::vector<Example> training_set;
+	uint64_t examples_count = 10000;
+	for (uint64_t i(examples_count); i--;) {
+		const float a = gen.getUnder(1.0f);
+		training_set.push_back({
+			{a},
+			{a}
+		});
+	}
 ```
 Train the network
 ```c++
 const float threshold = 1.0f;
-float error = threshold + 1.0f;
-while (error > threshold) {
-  error = 0.0f;
-  for (uint64_t i(examples_count); i--;) {
-    std::vector<float> input{ gen.getUnder(1.0f) };
-    // Here we want the input to be equal the output
-    optimizer.train(network, input, input);
-    // Save the error
-    error += optimizer.error;
-  }
-  std::cout << error << std::endl;
-}
+	float error = threshold + 1.0f;
+	while (error > threshold) {
+		error = 0.0f;
+		for (const Example& example : training_set) {
+			optimizer.train(network, example.input, example.output);
+			error += optimizer.error;
+		}
+		std::cout << error << std::endl;
+	}
 ```
 View results
 ```c++
