@@ -46,6 +46,7 @@ while (error > threshold) {
 		optimizer.train(network, example.input, example.output);
 		error += optimizer.error;
 	}
+	// Monitor the error after each iteration
 	std::cout << error << std::endl;
 }
 ```
