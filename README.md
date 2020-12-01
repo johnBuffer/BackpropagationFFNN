@@ -51,3 +51,7 @@ for (uint32_t i(10); i--;) {
   std::cout << "Result for " << a << ": " << r[0]  << " error: " << error << std::endl;
 }
 ```
+
+## Limitations
+ - Currently just **sigmoid** activation is supported
+ - Perf are probably very bad because of naive matrix operations
