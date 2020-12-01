@@ -26,28 +26,28 @@ struct Example
 Generate training set, here we just want the output to be equal to the input
 ```c++
 NumberGenerator gen;
-	std::vector<Example> training_set;
-	uint64_t examples_count = 10000;
-	for (uint64_t i(examples_count); i--;) {
-		const float a = gen.getUnder(1.0f);
-		training_set.push_back({
-			{a},
-			{a}
-		});
-	}
+std::vector<Example> training_set;
+uint64_t examples_count = 10000;
+for (uint64_t i(examples_count); i--;) {
+	const float a = gen.getUnder(1.0f);
+	training_set.push_back({
+		{a},
+		{a}
+	});
+}
 ```
 Train the network
 ```c++
 const float threshold = 1.0f;
-	float error = threshold + 1.0f;
-	while (error > threshold) {
-		error = 0.0f;
-		for (const Example& example : training_set) {
-			optimizer.train(network, example.input, example.output);
-			error += optimizer.error;
-		}
-		std::cout << error << std::endl;
+float error = threshold + 1.0f;
+while (error > threshold) {
+	error = 0.0f;
+	for (const Example& example : training_set) {
+		optimizer.train(network, example.input, example.output);
+		error += optimizer.error;
 	}
+	std::cout << error << std::endl;
+}
 ```
 View results
 ```c++
