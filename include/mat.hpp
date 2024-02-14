@@ -60,7 +60,9 @@ namespace ffnn
 		}
 	};
 
-	template<typename T>
+    using Matrixf = Matrix<float>;
+
+    template<typename T>
 	Matrix<T> operator* (const Matrix<T>& m1, const Matrix<T>& m2)
 	{
 		Matrix<T> result(m1.height, m2.width);
@@ -270,8 +272,6 @@ namespace ffnn
 
 		return result;
 	}
-
-	using Matrixf = Matrix<float>;
 
 	// Get the ith element from the back
 	template<typename T>

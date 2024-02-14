@@ -11,7 +11,7 @@ struct Example
 int main()
 {
 	// The network architecture: 1 input, 3 units in hidden layer, 1 output
-	std::vector<uint32_t> architecture{ 1, 3, 1 };
+	std::vector<uint32_t> architecture({ 1, 3, 1 });
 	// Create the network
 	ffnn::FFNeuralNetwork network(architecture);
 	// Create an optimizer
