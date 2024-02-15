@@ -1,79 +1,91 @@
  #pragma once
 
-#include "mat.hpp"
-#include <cmath>
+#include <Eigen/Dense>
 #include <iostream>
-#include "number_generator.hpp"
 
 
 namespace ffnn
 {
+    using ActivationFunction = float(*)(float);
+    using Matrix = Eigen::MatrixXf;
+    using Vector = Eigen::VectorXf;
+
 	float sigm(float x)
 	{
 		return 1.0f / (1.0f + exp(-x));
 	}
 
+    float sigm_derivative(float x)
+    {
+        return x * (1.0f - x);
+    }
+
 	struct Layer
 	{
-		Matrixf weights;
-		Vectorf values;
-		Vectorf bias;
+		Matrix weights;
+		Vector values;
+        Vector biases;
 
 		Layer(uint64_t size, uint64_t prev_size)
-			: weights(prev_size, size)
+			: weights(size, prev_size)
 			, values(size)
-			, bias(bool(prev_size) * size)
+			, biases(size)
 		{
-			NumberGenerator gen;
-			for (float& f : weights.values) {
-				f = gen.get();
-			}
-
-			for (float& f : bias) {
-				f = gen.get();
-			}
+			weights.setRandom();
+            biases.setRandom();
 		}
 
+        [[nodiscard]]
 		uint64_t getSize() const
 		{
 			return values.size();
 		}
 
-		void computeValues(const Vectorf& prev_values)
+		void computeValues(Vector const& prev_values)
 		{
-			values = map(sigm, weights * prev_values + bias);
+            // Compute weights and bias contributions
+            Vector const sums = weights * prev_values + biases;
+			values = sums.unaryExpr(&sigm);
 		}
 	};
 
 	struct FFNeuralNetwork
 	{
+        uint32_t           input_count = 0;
 		std::vector<Layer> layers;
 
+        explicit
 		FFNeuralNetwork(const std::vector<uint32_t>& architecture)
 		{
-			if (!architecture.empty()) {
-				layers.emplace_back(architecture.front(), 0);
-				for (uint64_t i(1); i < architecture.size(); ++i) {
-					addLayer(architecture[i]);
-				}
-			}
+			for (auto const layer_size : architecture) {
+                addLayer(layer_size);
+            }
 		}
 
 		void addLayer(uint64_t size)
 		{
-			layers.emplace_back(size, layers.back().getSize());
+            if (layers.empty()) {
+                input_count = size;
+                layers.emplace_back(size, 0);
+            } else {
+                layers.emplace_back(size, layers.back().getSize());
+            }
 		}
 
-		const Vectorf& execute(const Vectorf& input)
+		Vector const& execute(Vector const& input)
 		{
-			const uint64_t depth = getDepth();
+            assert(!layers.empty());
+            assert(input.size() == input_count);
+
+			uint64_t const depth = getDepth();
 			layers[0].values = input;
 			for (uint64_t i(1); i < depth; ++i) {
 				layers[i].computeValues(layers[i - 1].values);
 			}
-			return rget(layers).values;
+			return layers.back().values;
 		}
 
+        [[nodiscard]]
 		uint64_t getDepth() const
 		{
 			return layers.size();
@@ -88,25 +100,23 @@ namespace ffnn
 		Optimizer(float eta)
 			: learning_rate(eta)
 			, error(1.0f)
-		{
-		}
+		{}
 
-		void train(FFNeuralNetwork& network, const Vectorf& input, const Vectorf& expected_output)
+		void train(FFNeuralNetwork& network, Vector const& input, Vector const& expected_output)
 		{
 			const uint64_t depth = network.getDepth();
 			const std::vector<Layer>& layers = network.layers;
 			// Delta Weights -> the correction to apply to weights after this pass
-			std::vector<Matrixf> dw(depth-1);
+			std::vector<Matrix> dw(depth-1);
 			// Delta Bias -> the correction to apply to Bias after this pass
-			std::vector<Vectorf> db(depth-1);
+			std::vector<Matrix> db(depth-1);
 			// Forward pass
-			network.execute(input);
+            Vector const& output = network.execute(input);
 			// Compute error for the last layer
-			const Vectorf& output = crget(layers).values;
-			const Vectorf dedo = output - expected_output;
-			error = 0.5f * dot(dedo, dedo);
-			Vectorf delta = dedo * getActivationDerivative(output);
-			rget(dw) = learning_rate * delta * transpose(crget(layers, 1).values);
+			Vector const dedo = output - expected_output;
+			error = 0.5f * dedo.dot(dedo);
+			Vector const delta = dedo * getActivationDerivative(output, sigm_derivative);
+			dw.back() = learning_rate * delta * transpose(crget(layers, 1).values);
 			rget(db) = learning_rate * delta;
 			// Propagate error in previous layers
 			for (uint64_t i(1); i < depth - 1; ++i) {
@@ -119,21 +129,26 @@ namespace ffnn
 		}
 
 		// For sigmoid
-		static Vectorf getActivationDerivative(const Vectorf& v)
+		static Eigen::VectorXf getActivationDerivative(Eigen::VectorXf const& v, ActivationFunction function)
 		{
-			return v * (1.0f - v);
+			return v.unaryExpr(function);
 		}
 
-		void updateNetwork(ffnn::FFNeuralNetwork& network, const std::vector<Vectorf>& bias_update, const std::vector<Matrixf>& weights_update)
+        void correctLayer(uint32_t i, Vector const& last)
+        {
+
+        }
+
+		void updateNetwork(ffnn::FFNeuralNetwork& network, const std::vector<Eigen::VectorXf>& bias_update, const std::vector<Matrix>& weights_update)
 		{
 			const uint64_t depth = network.getDepth();
 			for (uint64_t i(1); i < depth; ++i) {
 				Layer& layer = network.layers[i];
 				// Update weights
-				Matrixf& w = layer.weights;
+				Matrix& w = layer.weights;
 				w = w - weights_update[i-1];
 				// Update bias
-				Vectorf& b = layer.bias;
+				Vector& b = layer.biases;
 				b = b - bias_update[i-1];
 			}
 		}
