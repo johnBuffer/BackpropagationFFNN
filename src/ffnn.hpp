@@ -62,6 +62,20 @@ namespace ffnn
             }
 		}
 
+        void setWeights(uint32_t layer_idx, uint32_t neuron_idx, std::vector<float> const& weights)
+        {
+            auto& l = layers[layer_idx];
+            auto const size = weights.size();
+            for (int64_t i{0}; i < size; ++i) {
+                l.weights(neuron_idx, i) = weights[i];
+            }
+        }
+
+        void setBias(uint32_t layer_idx, uint32_t neuron_idx, float bias)
+        {
+            layers[layer_idx].biases[neuron_idx] = bias;
+        }
+
 		void addLayer(uint64_t size)
 		{
             if (layers.empty()) {
@@ -78,7 +92,7 @@ namespace ffnn
             assert(input.size() == input_count);
 
 			uint64_t const depth = getDepth();
-			layers[0].values = input;
+            layers[0].values = input;
 			for (uint64_t i(1); i < depth; ++i) {
 				layers[i].computeValues(layers[i - 1].values);
 			}
@@ -90,6 +104,24 @@ namespace ffnn
 		{
 			return layers.size();
 		}
+
+        void print() const
+        {
+            uint32_t i{0};
+            for (auto const& l : layers) {
+                auto const curr_size = l.weights.rows();
+                auto const prev_size = l.weights.cols();
+                std::cout << "[ Layer " << i << " ]" << std::endl;
+                for (uint64_t k{0}; k < curr_size; ++k) {
+                    std::cout << "    Neuron [" << k << "]: ";
+                    for (uint64_t n_idx{0}; n_idx < prev_size; ++n_idx) {
+                        std::cout << l.weights(k, n_idx) << " ";
+                    }
+                    std::cout << " Bias: " << l.biases[k] << std::endl;
+                }
+                ++i;
+            }
+        }
 	};
 
 	struct Optimizer
@@ -107,25 +139,30 @@ namespace ffnn
 			const uint64_t depth = network.getDepth();
 			const std::vector<Layer>& layers = network.layers;
 			// Delta Weights -> the correction to apply to weights after this pass
-			std::vector<Matrix> dw(depth-1);
+			std::vector<Matrix> dw(depth - 1);
 			// Delta Bias -> the correction to apply to Bias after this pass
-			std::vector<Matrix> db(depth-1);
+			std::vector<Vector> db(depth - 1);
 			// Forward pass
             Vector const& output = network.execute(input);
 			// Compute error for the last layer
 			Vector const dedo = output - expected_output;
-			error = 0.5f * dedo.dot(dedo);
-			Vector const delta = dedo * getActivationDerivative(output, sigm_derivative);
-			dw.back() = learning_rate * delta * transpose(crget(layers, 1).values);
-			rget(db) = learning_rate * delta;
-			// Propagate error in previous layers
-			for (uint64_t i(1); i < depth - 1; ++i) {
-				delta = crget(layers, i - 1).weights.transpose() * delta * getActivationDerivative(crget(layers, i).values);
-				rget(dw, i) = learning_rate * delta * transpose(crget(layers, i + 1).values);
-				rget(db, i) = learning_rate * delta;
-			}
-			// Update weights and bias
-			updateNetwork(network, db, dw);
+            error = 0.5f * dedo.dot(dedo);
+            std::cout << "Error: " << error << std::endl;
+            Vector const delta_global = -(expected_output - output);
+            std::cout << "Delta global: \n" << delta_global << std::endl;
+			//Vector const delta = delta_global.cwiseProduct(output.unaryExpr(&sigm_derivative)) * (layers[depth - 2].values);
+            //std::cout << "Delta: " << delta << std::endl;
+
+            std::cout << "h1:" << layers[depth - 2].values(0) << std::endl;
+
+            Matrix offsets{
+                {delta_global(0) * sigm_derivative(output(0)) * layers[depth - 2].values(0), delta_global(0) * sigm_derivative(output(0)) * layers[depth - 2].values(1)},
+                {delta_global(1) * sigm_derivative(output(1)) * layers[depth - 2].values(0), delta_global(1) * sigm_derivative(output(1)) * layers[depth - 2].values(1)}
+            };
+
+            auto const new_weights = layers[depth - 1].weights - learning_rate * offsets;
+            std::cout << "New weights:" << std::endl;
+            std::cout << new_weights << std::endl;
 		}
 
 		// For sigmoid
