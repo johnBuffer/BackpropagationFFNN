@@ -144,21 +144,12 @@ namespace ffnn
 			std::vector<Vector> db(depth - 1);
 			// Forward pass
             Vector const& output = network.execute(input);
+            
 			// Compute error for the last layer
 			Vector const dedo = output - expected_output;
             error = 0.5f * dedo.dot(dedo);
-            std::cout << "Error: " << error << std::endl;
-            Vector const delta_global = -(expected_output - output);
-            std::cout << "Delta global: \n" << delta_global << std::endl;
-			//Vector const delta = delta_global.cwiseProduct(output.unaryExpr(&sigm_derivative)) * (layers[depth - 2].values);
-            //std::cout << "Delta: " << delta << std::endl;
-
-            std::cout << "h1:" << layers[depth - 2].values(0) << std::endl;
-
-            Matrix offsets{
-                {delta_global(0) * sigm_derivative(output(0)) * layers[depth - 2].values(0), delta_global(0) * sigm_derivative(output(0)) * layers[depth - 2].values(1)},
-                {delta_global(1) * sigm_derivative(output(1)) * layers[depth - 2].values(0), delta_global(1) * sigm_derivative(output(1)) * layers[depth - 2].values(1)}
-            };
+            Vector const delta_global = -(expected_output - output).cwiseProduct(output.unaryExpr(&sigm_derivative));
+            Matrix const offsets = delta_global * layers[depth - 2].values.transpose();
 
             auto const new_weights = layers[depth - 1].weights - learning_rate * offsets;
             std::cout << "New weights:" << std::endl;
