@@ -129,6 +129,7 @@ namespace ffnn
 		float learning_rate;
 		float error;
 
+        explicit
 		Optimizer(float eta)
 			: learning_rate(eta)
 			, error(1.0f)
@@ -136,48 +137,38 @@ namespace ffnn
 
 		void train(FFNeuralNetwork& network, Vector const& input, Vector const& expected_output)
 		{
-			const uint64_t depth = network.getDepth();
-			const std::vector<Layer>& layers = network.layers;
+			uint64_t const      depth  = network.getDepth();
+			std::vector<Layer>& layers = network.layers;
 			// Delta Weights -> the correction to apply to weights after this pass
-			std::vector<Matrix> dw(depth - 1);
+			std::vector<Matrix> dw(depth);
 			// Delta Bias -> the correction to apply to Bias after this pass
-			std::vector<Vector> db(depth - 1);
+			std::vector<Vector> db(depth);
 			// Forward pass
             Vector const& output = network.execute(input);
-            
-			// Compute error for the last layer
-			Vector const dedo = output - expected_output;
-            error = 0.5f * dedo.dot(dedo);
-            Vector const delta_global = -(expected_output - output).cwiseProduct(output.unaryExpr(&sigm_derivative));
-            Matrix const offsets = delta_global * layers[depth - 2].values.transpose();
-
-            auto const new_weights = layers[depth - 1].weights - learning_rate * offsets;
-            std::cout << "New weights:" << std::endl;
-            std::cout << new_weights << std::endl;
+            Vector dCdO = 2.0f * (output - expected_output);
+            std::cout << "Error: " << dCdO.dot(dCdO) << std::endl;
+            for (uint64_t i{depth}; --i;) {
+                Layer& current_layer = layers[i];
+                Vector dCdI = dCdO.cwiseProduct(current_layer.values.unaryExpr(&sigm_derivative));
+                Matrix dCdW = dCdI * layers[i-1].values.transpose();
+                dw[i] = dCdW;
+                db[i] = dCdI;
+                dCdO = current_layer.weights * dCdI;
+            }
+            updateNetwork(network, dw, db);
 		}
 
-		// For sigmoid
-		static Eigen::VectorXf getActivationDerivative(Eigen::VectorXf const& v, ActivationFunction function)
-		{
-			return v.unaryExpr(function);
-		}
-
-        void correctLayer(uint32_t i, Vector const& last)
-        {
-
-        }
-
-		void updateNetwork(ffnn::FFNeuralNetwork& network, const std::vector<Eigen::VectorXf>& bias_update, const std::vector<Matrix>& weights_update)
+		void updateNetwork(ffnn::FFNeuralNetwork& network, std::vector<Matrix> const& weights_update, std::vector<Vector> const& bias_update)
 		{
 			const uint64_t depth = network.getDepth();
 			for (uint64_t i(1); i < depth; ++i) {
 				Layer& layer = network.layers[i];
 				// Update weights
 				Matrix& w = layer.weights;
-				w = w - weights_update[i-1];
+				w = w - learning_rate * weights_update[i];
 				// Update bias
 				Vector& b = layer.biases;
-				b = b - bias_update[i-1];
+				b = b - learning_rate * bias_update[i];
 			}
 		}
 	};
