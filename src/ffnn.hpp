@@ -146,7 +146,6 @@ namespace ffnn
 			// Forward pass
             Vector const& output = network.execute(input);
             Vector dCdO = 2.0f * (output - expected_output);
-            std::cout << "Error: " << dCdO.dot(dCdO) << std::endl;
             for (uint64_t i{depth}; --i;) {
                 Layer& current_layer = layers[i];
                 Vector dCdI = dCdO.cwiseProduct(current_layer.values.unaryExpr(&sigm_derivative));
