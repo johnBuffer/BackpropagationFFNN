@@ -3,7 +3,6 @@
 #include <Eigen/Dense>
 #include <iostream>
 
-
 namespace ffnn
 {
     using ActivationFunction = float(*)(float);
@@ -18,6 +17,19 @@ namespace ffnn
     float sigm_derivative(float x)
     {
         return x * (1.0f - x);
+    }
+
+    uint64_t getIndexOfMax(Vector const& v)
+    {
+        float    max_value = v[0];
+        uint32_t max_idx   = 0;
+        for (uint32_t i{1}; i < v.size(); ++i) {
+            if (v[i] > max_value) {
+                max_value = v[i];
+                max_idx   = i;
+            }
+        }
+        return max_idx;
     }
 
 	struct Layer
@@ -129,45 +141,87 @@ namespace ffnn
 		float learning_rate;
 		float error;
 
+        uint32_t batch_size       = 200;
+        float    evaluation_ratio = 0.1f;
+
         explicit
 		Optimizer(float eta)
 			: learning_rate(eta)
 			, error(1.0f)
 		{}
 
-		void train(FFNeuralNetwork& network, Vector const& input, Vector const& expected_output)
+		void train(FFNeuralNetwork& network, std::vector<Vector> const& samples, std::vector<Vector> const& labels)
 		{
 			uint64_t const      depth  = network.getDepth();
 			std::vector<Layer>& layers = network.layers;
-			// Delta Weights -> the correction to apply to weights after this pass
-			std::vector<Matrix> dw(depth);
-			// Delta Bias -> the correction to apply to Bias after this pass
-			std::vector<Vector> db(depth);
-			// Forward pass
-            Vector const& output = network.execute(input);
-            Vector dCdO = 2.0f * (output - expected_output);
-            for (uint64_t i{depth}; --i;) {
-                Layer& current_layer = layers[i];
-                Vector dCdI = dCdO.cwiseProduct(current_layer.values.unaryExpr(&sigm_derivative));
-                Matrix dCdW = dCdI * layers[i-1].values.transpose();
-                dw[i] = dCdW;
-                db[i] = dCdI;
-                dCdO = current_layer.weights * dCdI;
+
+            uint64_t const samples_count = samples.size();
+            uint64_t current_sample_idx = 0;
+
+            // Delta Weights -> the correction to apply to weights after this pass
+            std::vector<Matrix> dw(depth);
+            // Delta Bias -> the correction to apply to Bias after this pass
+            std::vector<Vector> db(depth);
+            // Initialize weight / bias correction
+            for (uint64_t i(1); i < depth; ++i) {
+                dw[i].resize(layers[i].weights.rows(), layers[i].weights.cols());
+                db[i].resize(layers[i].weights.rows());
             }
-            updateNetwork(network, dw, db);
+
+            uint64_t const evaluation_count = batch_size * evaluation_ratio;
+            uint64_t const training_size    = batch_size - evaluation_count;
+
+            // Processing batches
+            while (current_sample_idx < samples_count) {
+                for (uint64_t i(1); i < depth; ++i) {
+                    dw[i].setZero();
+                    db[i].setZero();
+                }
+
+                for (uint32_t b_idx{0}; b_idx < training_size; ++b_idx) {
+                    // Forward pass
+                    auto const& input = samples[current_sample_idx];
+                    Vector const& output = network.execute(input);
+                    Vector dCdO = 2.0f * (output - labels[current_sample_idx]);
+                    error = dCdO.dot(dCdO);
+                    for (uint64_t i{depth}; --i;) {
+                        Layer& current_layer = layers[i];
+                        Vector dCdI = dCdO.cwiseProduct(current_layer.values.unaryExpr(&sigm_derivative));
+                        Matrix dCdW = dCdI * layers[i - 1].values.transpose();
+                        dw[i] += dCdW;
+                        db[i] += dCdI;
+                        dCdO = current_layer.weights.transpose() * dCdI;
+                    }
+                    ++current_sample_idx;
+                }
+
+                uint32_t score = 0;
+                for (uint32_t i{0}; i < evaluation_count; ++i) {
+                    auto const& output = network.execute(samples[current_sample_idx]);
+                    auto const guessed = getIndexOfMax(output);
+                    auto const correct = getIndexOfMax(labels[current_sample_idx]);
+                    score += guessed == correct;
+                    ++current_sample_idx;
+                }
+
+                std::cout << "Batch done: " << score << " / " << evaluation_count << std::endl;
+
+                updateNetwork(network, dw, db);
+            }
 		}
 
 		void updateNetwork(ffnn::FFNeuralNetwork& network, std::vector<Matrix> const& weights_update, std::vector<Vector> const& bias_update)
 		{
 			const uint64_t depth = network.getDepth();
+            float const coef = learning_rate / to<float>(batch_size);
 			for (uint64_t i(1); i < depth; ++i) {
 				Layer& layer = network.layers[i];
 				// Update weights
 				Matrix& w = layer.weights;
-				w = w - learning_rate * weights_update[i];
+				w -= coef * weights_update[i];
 				// Update bias
 				Vector& b = layer.biases;
-				b = b - learning_rate * bias_update[i];
+				b -= coef * bias_update[i];
 			}
 		}
 	};
